@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitattributes" />
+    <File Path=".gitignore" />
+    <File Path="README.md" />
+    <File Path="SPEC.md" />
+  </Folder>
+  <Project Path="src/Symphony.App/Symphony.App.csproj" />
+</Solution>

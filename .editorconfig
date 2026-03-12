@@ -1,0 +1,40 @@
+root = true
+
+[*.cs]
+
+#### INDENTATION ####
+indent_style = space
+indent_size = 4
+tab_width = 4
+
+#### NAMING STYLES ####
+
+# camelCase
+dotnet_naming_style.camel_case_style.capitalization = camel_case
+
+# PascalCase
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+#### SYMBOLS ####
+
+# Private methods
+dotnet_naming_symbols.private_methods.applicable_kinds = method
+dotnet_naming_symbols.private_methods.applicable_accessibilities = private
+dotnet_naming_symbols.private_methods.required_modifiers = 
+
+# Locals
+dotnet_naming_symbols.locals.applicable_kinds = local
+dotnet_naming_symbols.locals.applicable_accessibilities = *
+dotnet_naming_symbols.locals.required_modifiers = 
+
+#### RULES ####
+
+# Private methods: camelCase
+dotnet_naming_rule.private_methods_camel_case.symbols = private_methods
+dotnet_naming_rule.private_methods_camel_case.style = camel_case_style
+dotnet_naming_rule.private_methods_camel_case.severity = warning
+
+# Locals: camelCase
+dotnet_naming_rule.locals_camel_case.symbols = locals
+dotnet_naming_rule.locals_camel_case.style = camel_case_style
+dotnet_naming_rule.locals_camel_case.severity = warning
