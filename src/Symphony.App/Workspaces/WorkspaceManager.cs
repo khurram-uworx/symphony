@@ -5,22 +5,37 @@ using Symphony.App.Utils;
 
 namespace Symphony.App.Workspaces;
 
-public sealed class WorkspaceManager
+class WorkspaceManager
 {
-    private readonly ServiceConfigProvider _configProvider;
-    private readonly ShellCommandRunner _shell;
-    private readonly ILogger<WorkspaceManager> _logger;
+    static void cleanupTempArtifacts(string path)
+    {
+        var tmp = Path.Combine(path, "tmp");
+        if (Directory.Exists(tmp))
+        {
+            Directory.Delete(tmp, true);
+        }
+
+        var elixir = Path.Combine(path, ".elixir_ls");
+        if (Directory.Exists(elixir))
+        {
+            Directory.Delete(elixir, true);
+        }
+    }
+
+    readonly ServiceConfigProvider configProvider;
+    readonly ShellCommandRunner shell;
+    readonly ILogger<WorkspaceManager> logger;
 
     public WorkspaceManager(ServiceConfigProvider configProvider, ShellCommandRunner shell, ILogger<WorkspaceManager> logger)
     {
-        _configProvider = configProvider;
-        _shell = shell;
-        _logger = logger;
+        this.configProvider = configProvider;
+        this.shell = shell;
+        this.logger = logger;
     }
 
     public async Task<Workspace> CreateForIssueAsync(string identifier, CancellationToken cancellationToken)
     {
-        var config = _configProvider.GetConfig();
+        var config = configProvider.GetConfig();
         var root = config.Workspace.Root;
         Directory.CreateDirectory(root);
 
@@ -46,11 +61,11 @@ public sealed class WorkspaceManager
             createdNow = true;
         }
 
-        CleanupTempArtifacts(fullPath);
+        cleanupTempArtifacts(fullPath);
 
         if (createdNow && !string.IsNullOrWhiteSpace(config.Hooks.AfterCreate))
         {
-            var result = await _shell.RunAsync(config.Hooks.AfterCreate, fullPath, config.Hooks.TimeoutMs, cancellationToken);
+            var result = await shell.RunAsync(config.Hooks.AfterCreate, fullPath, config.Hooks.TimeoutMs, cancellationToken);
             if (!result.Success)
             {
                 throw new InvalidOperationException("after_create hook failed.");
@@ -67,7 +82,7 @@ public sealed class WorkspaceManager
             return true;
         }
 
-        var result = await _shell.RunAsync(hook, workspacePath, timeoutMs, cancellationToken);
+        var result = await shell.RunAsync(hook, workspacePath, timeoutMs, cancellationToken);
         return result.Success;
     }
 
@@ -78,16 +93,16 @@ public sealed class WorkspaceManager
             return;
         }
 
-        var result = await _shell.RunAsync(hook, workspacePath, timeoutMs, cancellationToken);
+        var result = await shell.RunAsync(hook, workspacePath, timeoutMs, cancellationToken);
         if (!result.Success)
         {
-            _logger.LogWarning("Hook failed (ignored): {Hook}", hook);
+            logger.LogWarning("Hook failed (ignored): {Hook}", hook);
         }
     }
 
     public async Task CleanupWorkspaceAsync(string identifier, CancellationToken cancellationToken)
     {
-        var config = _configProvider.GetConfig();
+        var config = configProvider.GetConfig();
         var root = config.Workspace.Root;
         var workspaceKey = SanitizeKey(identifier);
         var path = Path.Combine(root, workspaceKey);
@@ -103,22 +118,7 @@ public sealed class WorkspaceManager
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to remove workspace {Path}", path);
-        }
-    }
-
-    private static void CleanupTempArtifacts(string path)
-    {
-        var tmp = Path.Combine(path, "tmp");
-        if (Directory.Exists(tmp))
-        {
-            Directory.Delete(tmp, true);
-        }
-
-        var elixir = Path.Combine(path, ".elixir_ls");
-        if (Directory.Exists(elixir))
-        {
-            Directory.Delete(elixir, true);
+            logger.LogWarning(ex, "Failed to remove workspace {Path}", path);
         }
     }
 

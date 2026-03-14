@@ -1,11 +1,11 @@
 namespace Symphony.App.Domain;
 
-public sealed record BlockerRef(
+record BlockerRef(
     string? Id,
     string? Identifier,
     string? State);
 
-public sealed record Issue(
+record Issue(
     string Id,
     string Identifier,
     string Title,

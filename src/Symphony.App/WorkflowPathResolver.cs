@@ -1,6 +1,8 @@
 namespace Symphony.App;
 
-public static class WorkflowPathResolver
+sealed record WorkflowPath(string Value);
+
+static class WorkflowPathResolver
 {
     public static string Resolve(string[] args)
     {
@@ -21,5 +23,3 @@ public static class WorkflowPathResolver
         return Path.GetFullPath(path);
     }
 }
-
-public sealed record WorkflowPath(string Value);

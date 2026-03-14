@@ -5,15 +5,58 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace Symphony.App.Workflows;
 
-public sealed class WorkflowLoader
+class WorkflowLoader
 {
-    private readonly ILogger<WorkflowLoader> _logger;
-    private readonly IDeserializer _deserializer;
+    static IReadOnlyDictionary<string, object> toStringKeyDictionary(IDictionary<object, object> source)
+    {
+        var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in source)
+        {
+            if (key is null)
+            {
+                continue;
+            }
+
+            var keyString = key.ToString() ?? string.Empty;
+            result[keyString] = normalizeYamlValue(value);
+        }
+
+        return result;
+    }
+
+    static object normalizeYamlValue(object? value)
+    {
+        if (value is null)
+        {
+            return string.Empty;
+        }
+
+        if (value is IDictionary<object, object> map)
+        {
+            return toStringKeyDictionary(map);
+        }
+
+        if (value is IList<object> list)
+        {
+            var normalized = new List<object>(list.Count);
+            foreach (var item in list)
+            {
+                normalized.Add(normalizeYamlValue(item));
+            }
+
+            return normalized;
+        }
+
+        return value;
+    }
+
+    readonly ILogger<WorkflowLoader> logger;
+    readonly IDeserializer deserializer;
 
     public WorkflowLoader(ILogger<WorkflowLoader> logger)
     {
-        _logger = logger;
-        _deserializer = new DeserializerBuilder()
+        this.logger = logger;
+        deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
     }
@@ -61,14 +104,14 @@ public sealed class WorkflowLoader
         IReadOnlyDictionary<string, object> config;
         try
         {
-            var yamlObject = _deserializer.Deserialize<object>(frontMatter);
+            var yamlObject = deserializer.Deserialize<object>(frontMatter);
             if (yamlObject is null)
             {
                 config = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             }
             else if (yamlObject is IDictionary<object, object> map)
             {
-                config = ToStringKeyDictionary(map);
+                config = toStringKeyDictionary(map);
             }
             else
             {
@@ -86,50 +129,7 @@ public sealed class WorkflowLoader
 
         var remaining = reader.ReadToEnd();
         var prompt = remaining.Trim();
-        _logger.LogDebug("Loaded workflow config with {KeyCount} keys", config.Count);
+        logger.LogDebug("Loaded workflow config with {KeyCount} keys", config.Count);
         return new WorkflowDefinition(config, prompt);
-    }
-
-    private static IReadOnlyDictionary<string, object> ToStringKeyDictionary(IDictionary<object, object> source)
-    {
-        var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (key, value) in source)
-        {
-            if (key is null)
-            {
-                continue;
-            }
-
-            var keyString = key.ToString() ?? string.Empty;
-            result[keyString] = NormalizeYamlValue(value);
-        }
-
-        return result;
-    }
-
-    private static object NormalizeYamlValue(object? value)
-    {
-        if (value is null)
-        {
-            return string.Empty;
-        }
-
-        if (value is IDictionary<object, object> map)
-        {
-            return ToStringKeyDictionary(map);
-        }
-
-        if (value is IList<object> list)
-        {
-            var normalized = new List<object>(list.Count);
-            foreach (var item in list)
-            {
-                normalized.Add(NormalizeYamlValue(item));
-            }
-
-            return normalized;
-        }
-
-        return value;
     }
 }

@@ -2,67 +2,68 @@ using Microsoft.Extensions.Logging;
 
 namespace Symphony.App.Workflows;
 
-public sealed class WorkflowManager : IDisposable
+class WorkflowManager : IDisposable
 {
-    private readonly WorkflowLoader _loader;
-    private readonly ILogger<WorkflowManager> _logger;
-    private readonly WorkflowPath _path;
-    private FileSystemWatcher? _watcher;
-    private WorkflowDefinition? _current;
-    private Exception? _lastError;
+    readonly WorkflowLoader loader;
+    readonly ILogger<WorkflowManager> logger;
+    readonly WorkflowPath path;
+    FileSystemWatcher? watcher;
+    WorkflowDefinition? current;
+    Exception? lastError;
 
     public WorkflowManager(WorkflowLoader loader, ILogger<WorkflowManager> logger, WorkflowPath path)
     {
-        _loader = loader;
-        _logger = logger;
-        _path = path;
+        this.loader = loader;
+        this.logger = logger;
+        this.path = path;
     }
 
-    public WorkflowDefinition Current => _current ?? throw new InvalidOperationException("Workflow not loaded.");
-    public Exception? LastError => _lastError;
+    public WorkflowDefinition Current => current ?? throw new InvalidOperationException("Workflow not loaded.");
+
+    public Exception? LastError => lastError;
+
+    void loadInitial()
+    {
+        current = loader.Load(path.Value);
+        lastError = null;
+        logger.LogInformation("Loaded workflow from {Path}", path.Value);
+    }
 
     public void StartWatching()
     {
-        LoadInitial();
+        loadInitial();
 
-        var directory = Path.GetDirectoryName(_path.Value) ?? Environment.CurrentDirectory;
-        var fileName = Path.GetFileName(_path.Value);
-        _watcher = new FileSystemWatcher(directory, fileName)
+        var directory = Path.GetDirectoryName(path.Value) ?? Environment.CurrentDirectory;
+        var fileName = Path.GetFileName(path.Value);
+        watcher = new FileSystemWatcher(directory, fileName)
         {
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName
         };
 
-        _watcher.Changed += (_, _) => Reload();
-        _watcher.Created += (_, _) => Reload();
-        _watcher.Renamed += (_, _) => Reload();
-        _watcher.EnableRaisingEvents = true;
+        watcher.Changed += (_, _) => Reload();
+        watcher.Created += (_, _) => Reload();
+        watcher.Renamed += (_, _) => Reload();
+        watcher.EnableRaisingEvents = true;
     }
 
     public void Reload()
     {
         try
         {
-            var definition = _loader.Load(_path.Value);
-            _current = definition;
-            _lastError = null;
-            _logger.LogInformation("Reloaded workflow from {Path}", _path.Value);
+            var definition = loader.Load(path.Value);
+            current = definition;
+            lastError = null;
+            logger.LogInformation("Reloaded workflow from {Path}", path.Value);
         }
         catch (Exception ex)
         {
-            _lastError = ex;
-            _logger.LogError(ex, "Failed to reload workflow; keeping last known good configuration.");
+            lastError = ex;
+            logger.LogError(ex, "Failed to reload workflow; keeping last known good configuration.");
         }
-    }
-
-    private void LoadInitial()
-    {
-        _current = _loader.Load(_path.Value);
-        _lastError = null;
-        _logger.LogInformation("Loaded workflow from {Path}", _path.Value);
     }
 
     public void Dispose()
     {
-        _watcher?.Dispose();
+        watcher?.Dispose();
     }
 }

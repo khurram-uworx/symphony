@@ -2,7 +2,7 @@ using Symphony.App.Domain;
 
 namespace Symphony.App.Orchestration;
 
-public sealed class LiveSession
+class LiveSession
 {
     public string? SessionId { get; set; }
     public string? ThreadId { get; set; }
@@ -20,7 +20,7 @@ public sealed class LiveSession
     public int TurnCount { get; set; }
 }
 
-public sealed class RunningEntry
+class RunningEntry
 {
     public required Issue Issue { get; set; }
     public required string Identifier { get; init; }
@@ -31,7 +31,7 @@ public sealed class RunningEntry
     public LiveSession Session { get; } = new();
 }
 
-public sealed class RetryEntry
+class RetryEntry
 {
     public required string IssueId { get; init; }
     public required string Identifier { get; init; }
@@ -41,7 +41,7 @@ public sealed class RetryEntry
     public string? Error { get; init; }
 }
 
-public sealed class OrchestratorState
+class OrchestratorState
 {
     public int PollIntervalMs { get; set; }
     public int MaxConcurrentAgents { get; set; }
@@ -53,7 +53,7 @@ public sealed class OrchestratorState
     public CodexRateLimits? RateLimits { get; set; }
 }
 
-public sealed class CodexTotals
+class CodexTotals
 {
     public int InputTokens { get; set; }
     public int OutputTokens { get; set; }
@@ -61,12 +61,9 @@ public sealed class CodexTotals
     public double SecondsRunning { get; set; }
 }
 
-public sealed class CodexRateLimits
+class CodexRateLimits
 {
     public int? RequestsRemaining { get; set; }
     public int? TokensRemaining { get; set; }
     public DateTimeOffset? ResetAt { get; set; }
 }
-
-
-

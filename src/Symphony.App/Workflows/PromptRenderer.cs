@@ -3,30 +3,30 @@ using Symphony.App.Domain;
 
 namespace Symphony.App.Workflows;
 
-public sealed class PromptRenderer
+class PromptRenderer
 {
-    private readonly FluidParser _parser;
-    private readonly TemplateOptions _options;
+    readonly FluidParser parser;
+    readonly TemplateOptions options;
 
     public PromptRenderer()
     {
-        _parser = new FluidParser();
-        _options = new TemplateOptions
+        parser = new FluidParser();
+        options = new TemplateOptions
         {
         };
 
-        _options.MemberAccessStrategy.Register<Issue>();
-        _options.MemberAccessStrategy.Register<BlockerRef>();
+        options.MemberAccessStrategy.Register<Issue>();
+        options.MemberAccessStrategy.Register<BlockerRef>();
     }
 
     public string Render(string templateBody, Issue issue, int? attempt)
     {
-        if (!_parser.TryParse(templateBody, out var template, out var errors))
+        if (!parser.TryParse(templateBody, out var template, out var errors))
         {
             throw new WorkflowException("template_parse_error", string.Join("; ", errors));
         }
 
-        var context = new TemplateContext(_options);
+        var context = new TemplateContext(options);
         context.SetValue("issue", issue);
         if (attempt is not null)
         {
@@ -43,4 +43,3 @@ public sealed class PromptRenderer
         }
     }
 }
-

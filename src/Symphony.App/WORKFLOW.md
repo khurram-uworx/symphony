@@ -1,7 +1,8 @@
 ---
 tracker:
   kind: linear
-  project_slug: "symphony-0c79b11b75ea"
+  api_key: "DONT-CHECK-IN-KEY"
+  project_slug: "DONT-CHECK-IN-PROJECT-SLUG"
   active_states:
     - Todo
     - In Progress

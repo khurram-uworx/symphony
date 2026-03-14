@@ -3,69 +3,7 @@ using Symphony.App.Workflows;
 
 namespace Symphony.App.Config;
 
-public sealed class ServiceConfigProvider
-{
-    private readonly WorkflowManager _workflowManager;
-    private readonly ILogger<ServiceConfigProvider> _logger;
-
-    public ServiceConfigProvider(WorkflowManager workflowManager, ILogger<ServiceConfigProvider> logger)
-    {
-        _workflowManager = workflowManager;
-        _logger = logger;
-    }
-
-    public ServiceConfig GetConfig()
-    {
-        var definition = _workflowManager.Current;
-        var config = definition.Config;
-
-        var tracker = TrackerConfig.From(config);
-        var polling = PollingConfig.From(config);
-        var workspace = WorkspaceConfig.From(config);
-        var hooks = HooksConfig.From(config);
-        var agent = AgentConfig.From(config);
-        var codex = CodexConfig.From(config);
-
-        return new ServiceConfig(definition, tracker, polling, workspace, hooks, agent, codex);
-    }
-
-    public ConfigValidationResult ValidateForDispatch(ServiceConfig config)
-    {
-        if (string.IsNullOrWhiteSpace(config.Tracker.Kind))
-        {
-            return ConfigValidationResult.Fail("tracker.kind is missing");
-        }
-
-        if (!string.Equals(config.Tracker.Kind, "linear", StringComparison.OrdinalIgnoreCase))
-        {
-            return ConfigValidationResult.Fail($"Unsupported tracker.kind '{config.Tracker.Kind}'.");
-        }
-
-        if (string.IsNullOrWhiteSpace(config.Tracker.ApiKey))
-        {
-            return ConfigValidationResult.Fail("tracker.api_key is missing");
-        }
-
-        if (string.IsNullOrWhiteSpace(config.Tracker.ProjectSlug))
-        {
-            return ConfigValidationResult.Fail("tracker.project_slug is missing");
-        }
-
-        if (string.IsNullOrWhiteSpace(config.Codex.Command))
-        {
-            return ConfigValidationResult.Fail("codex.command is missing");
-        }
-
-        return ConfigValidationResult.Ok();
-    }
-
-    public void LogValidationFailure(ConfigValidationResult validation)
-    {
-        _logger.LogError("Configuration validation failed: {Error}", validation.ErrorMessage);
-    }
-}
-
-public sealed record ServiceConfig(
+record ServiceConfig(
     WorkflowDefinition Workflow,
     TrackerConfig Tracker,
     PollingConfig Polling,
@@ -78,7 +16,7 @@ public sealed record ServiceConfig(
     public HashSet<string> TerminalStates => Tracker.TerminalStates;
 }
 
-public sealed record TrackerConfig(
+record TrackerConfig(
     string Kind,
     string Endpoint,
     string ApiKey,
@@ -86,6 +24,20 @@ public sealed record TrackerConfig(
     HashSet<string> ActiveStates,
     HashSet<string> TerminalStates)
 {
+    static HashSet<string> normalizeStates(IEnumerable<string> states)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var state in states)
+        {
+            if (!string.IsNullOrWhiteSpace(state))
+            {
+                set.Add(state.Trim().ToLowerInvariant());
+            }
+        }
+
+        return set;
+    }
+
     public static TrackerConfig From(IReadOnlyDictionary<string, object> root)
     {
         var tracker = ConfigReader.ReadMap(root, "tracker");
@@ -106,26 +58,12 @@ public sealed record TrackerConfig(
             endpoint,
             apiKey,
             projectSlug,
-            NormalizeStates(activeStates),
-            NormalizeStates(terminalStates));
-    }
-
-    private static HashSet<string> NormalizeStates(IEnumerable<string> states)
-    {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var state in states)
-        {
-            if (!string.IsNullOrWhiteSpace(state))
-            {
-                set.Add(state.Trim().ToLowerInvariant());
-            }
-        }
-
-        return set;
+            normalizeStates(activeStates),
+            normalizeStates(terminalStates));
     }
 }
 
-public sealed record PollingConfig(int IntervalMs)
+record PollingConfig(int IntervalMs)
 {
     public static PollingConfig From(IReadOnlyDictionary<string, object> root)
     {
@@ -140,7 +78,7 @@ public sealed record PollingConfig(int IntervalMs)
     }
 }
 
-public sealed record WorkspaceConfig(string Root)
+record WorkspaceConfig(string Root)
 {
     public static WorkspaceConfig From(IReadOnlyDictionary<string, object> root)
     {
@@ -151,7 +89,7 @@ public sealed record WorkspaceConfig(string Root)
     }
 }
 
-public sealed record HooksConfig(
+record HooksConfig(
     string? AfterCreate,
     string? BeforeRun,
     string? AfterRun,
@@ -176,7 +114,7 @@ public sealed record HooksConfig(
     }
 }
 
-public sealed record AgentConfig(
+record AgentConfig(
     int MaxConcurrentAgents,
     int MaxRetryBackoffMs,
     int MaxTurns,
@@ -224,7 +162,7 @@ public sealed record AgentConfig(
     }
 }
 
-public sealed record CodexConfig(
+record CodexConfig(
     string Command,
     string? ApprovalPolicy,
     string? ThreadSandbox,
@@ -247,13 +185,75 @@ public sealed record CodexConfig(
     }
 }
 
-public sealed record ConfigValidationResult(bool IsOk, string? ErrorMessage)
+record ConfigValidationResult(bool IsOk, string? ErrorMessage)
 {
     public static ConfigValidationResult Ok() => new(true, null);
     public static ConfigValidationResult Fail(string message) => new(false, message);
 }
 
-public static class ConfigReader
+class ServiceConfigProvider
+{
+    readonly WorkflowManager workflowManager;
+    readonly ILogger<ServiceConfigProvider> logger;
+
+    public ServiceConfigProvider(WorkflowManager workflowManager, ILogger<ServiceConfigProvider> logger)
+    {
+        this.workflowManager = workflowManager;
+        this.logger = logger;
+    }
+
+    public ServiceConfig GetConfig()
+    {
+        var definition = workflowManager.Current;
+        var config = definition.Config;
+
+        var tracker = TrackerConfig.From(config);
+        var polling = PollingConfig.From(config);
+        var workspace = WorkspaceConfig.From(config);
+        var hooks = HooksConfig.From(config);
+        var agent = AgentConfig.From(config);
+        var codex = CodexConfig.From(config);
+
+        return new ServiceConfig(definition, tracker, polling, workspace, hooks, agent, codex);
+    }
+
+    public ConfigValidationResult ValidateForDispatch(ServiceConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(config.Tracker.Kind))
+        {
+            return ConfigValidationResult.Fail("tracker.kind is missing");
+        }
+
+        if (!string.Equals(config.Tracker.Kind, "linear", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConfigValidationResult.Fail($"Unsupported tracker.kind '{config.Tracker.Kind}'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Tracker.ApiKey))
+        {
+            return ConfigValidationResult.Fail("tracker.api_key is missing");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Tracker.ProjectSlug))
+        {
+            return ConfigValidationResult.Fail("tracker.project_slug is missing");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Codex.Command))
+        {
+            return ConfigValidationResult.Fail("codex.command is missing");
+        }
+
+        return ConfigValidationResult.Ok();
+    }
+
+    public void LogValidationFailure(ConfigValidationResult validation)
+    {
+        logger.LogError("Configuration validation failed: {Error}", validation.ErrorMessage);
+    }
+}
+
+static class ConfigReader
 {
     public static IReadOnlyDictionary<string, object> ReadMap(IReadOnlyDictionary<string, object> root, string key)
     {
@@ -364,4 +364,3 @@ public static class ConfigReader
         return Path.GetFullPath(resolved);
     }
 }
-

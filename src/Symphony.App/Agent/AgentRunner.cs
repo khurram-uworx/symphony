@@ -8,14 +8,20 @@ using Symphony.App.Workspaces;
 
 namespace Symphony.App.Agent;
 
-public sealed class AgentRunner
+record AgentRunResult(bool Success, string? Reason, Exception? Exception)
 {
-    private readonly ServiceConfigProvider _configProvider;
-    private readonly WorkspaceManager _workspaceManager;
-    private readonly AppServerClientFactory _clientFactory;
-    private readonly LinearClient _linearClient;
-    private readonly ILogger<AgentRunner> _logger;
-    private readonly PromptRenderer _promptRenderer;
+    public static AgentRunResult CreateSuccess() => new(true, null, null);
+    public static AgentRunResult Fail(string reason, Exception? ex = null) => new(false, reason, ex);
+}
+
+class AgentRunner
+{
+    readonly ServiceConfigProvider configProvider;
+    readonly WorkspaceManager workspaceManager;
+    readonly AppServerClientFactory clientFactory;
+    readonly LinearClient linearClient;
+    readonly ILogger<AgentRunner> logger;
+    readonly PromptRenderer promptRenderer;
 
     public AgentRunner(
         ServiceConfigProvider configProvider,
@@ -24,34 +30,34 @@ public sealed class AgentRunner
         LinearClient linearClient,
         ILogger<AgentRunner> logger)
     {
-        _configProvider = configProvider;
-        _workspaceManager = workspaceManager;
-        _clientFactory = clientFactory;
-        _linearClient = linearClient;
-        _logger = logger;
-        _promptRenderer = new PromptRenderer();
+        this.configProvider = configProvider;
+        this.workspaceManager = workspaceManager;
+        this.clientFactory = clientFactory;
+        this.linearClient = linearClient;
+        this.logger = logger;
+        promptRenderer = new PromptRenderer();
     }
 
     public async Task<AgentRunResult> RunAttemptAsync(Issue issue, int? attempt, LiveSession liveSession, Action<CodexEvent> onEvent, CancellationToken cancellationToken)
     {
-        var config = _configProvider.GetConfig();
-        using var scope = _logger.BeginScope(new Dictionary<string, object> { { "issue_id", issue.Id }, { "issue_identifier", issue.Identifier } });
+        var config = configProvider.GetConfig();
+        using var scope = logger.BeginScope(new Dictionary<string, object> { { "issue_id", issue.Id }, { "issue_identifier", issue.Identifier } });
         Workspace workspace;
         try
         {
-            workspace = await _workspaceManager.CreateForIssueAsync(issue.Identifier, cancellationToken);
+            workspace = await workspaceManager.CreateForIssueAsync(issue.Identifier, cancellationToken);
         }
         catch (Exception ex)
         {
             return AgentRunResult.Fail("workspace error", ex);
         }
 
-        if (!await _workspaceManager.RunHookAsync(config.Hooks.BeforeRun, workspace.Path, config.Hooks.TimeoutMs, cancellationToken))
+        if (!await workspaceManager.RunHookAsync(config.Hooks.BeforeRun, workspace.Path, config.Hooks.TimeoutMs, cancellationToken))
         {
             return AgentRunResult.Fail("before_run hook error");
         }
 
-        var client = _clientFactory.Create();
+        var client = clientFactory.Create();
         AppServerSession? session = null;
         try
         {
@@ -59,7 +65,7 @@ public sealed class AgentRunner
         }
         catch (Exception ex)
         {
-            await _workspaceManager.RunHookBestEffortAsync(config.Hooks.AfterRun, workspace.Path, config.Hooks.TimeoutMs, cancellationToken);
+            await workspaceManager.RunHookBestEffortAsync(config.Hooks.AfterRun, workspace.Path, config.Hooks.TimeoutMs, cancellationToken);
             return AgentRunResult.Fail("agent session startup error", ex);
         }
 
@@ -71,12 +77,12 @@ public sealed class AgentRunner
             {
                 var prompt = string.IsNullOrWhiteSpace(config.Workflow.PromptTemplate)
                     ? "You are working on an issue from Linear."
-                    : _promptRenderer.Render(config.Workflow.PromptTemplate, issue, attempt);
+                    : promptRenderer.Render(config.Workflow.PromptTemplate, issue, attempt);
 
                 await client.RunTurnAsync(session, config, prompt, liveSession, cancellationToken);
                 liveSession.TurnCount++;
 
-                var refreshed = await _linearClient.FetchIssueStatesByIdsAsync(config, new[] { issue.Id }, cancellationToken);
+                var refreshed = await linearClient.FetchIssueStatesByIdsAsync(config, new[] { issue.Id }, cancellationToken);
                 if (refreshed.Count == 0)
                 {
                     break;
@@ -98,12 +104,12 @@ public sealed class AgentRunner
         }
         catch (WorkflowException ex)
         {
-            await _workspaceManager.RunHookBestEffortAsync(config.Hooks.AfterRun, workspace.Path, config.Hooks.TimeoutMs, cancellationToken);
+            await workspaceManager.RunHookBestEffortAsync(config.Hooks.AfterRun, workspace.Path, config.Hooks.TimeoutMs, cancellationToken);
             return AgentRunResult.Fail("prompt error", ex);
         }
         catch (Exception ex)
         {
-            await _workspaceManager.RunHookBestEffortAsync(config.Hooks.AfterRun, workspace.Path, config.Hooks.TimeoutMs, cancellationToken);
+            await workspaceManager.RunHookBestEffortAsync(config.Hooks.AfterRun, workspace.Path, config.Hooks.TimeoutMs, cancellationToken);
             return AgentRunResult.Fail("agent turn error", ex);
         }
         finally
@@ -114,16 +120,7 @@ public sealed class AgentRunner
             }
         }
 
-        await _workspaceManager.RunHookBestEffortAsync(config.Hooks.AfterRun, workspace.Path, config.Hooks.TimeoutMs, cancellationToken);
+        await workspaceManager.RunHookBestEffortAsync(config.Hooks.AfterRun, workspace.Path, config.Hooks.TimeoutMs, cancellationToken);
         return AgentRunResult.CreateSuccess();
     }
 }
-
-public sealed record AgentRunResult(bool Success, string? Reason, Exception? Exception)
-{
-    public static AgentRunResult CreateSuccess() => new(true, null, null);
-    public static AgentRunResult Fail(string reason, Exception? ex = null) => new(false, reason, ex);
-}
-
-
-

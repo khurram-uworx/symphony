@@ -5,16 +5,55 @@ using System.Text;
 
 namespace Symphony.App.Utils;
 
-public sealed class ShellCommandRunner
+record CommandResult(bool Success, int ExitCode, string StdOut, string StdErr);
+
+class ShellCommandRunner
 {
-    private readonly ILogger<ShellCommandRunner> _logger;
+    static string escape(string command)
+    {
+        return command.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+
+    static bool isExecutableOnPath(string name)
+    {
+        var paths = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var path in paths)
+        {
+            var candidate = Path.Combine(path, name + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : string.Empty));
+            if (File.Exists(candidate))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    static void tryKill(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(true);
+            }
+        }
+        catch
+        {
+            // ignored
+        }
+    }
+
+    readonly ILogger<ShellCommandRunner> logger;
 
     public ShellCommandRunner(ILogger<ShellCommandRunner> logger)
     {
-        _logger = logger;
+        this.logger = logger;
     }
 
-    public async Task<CommandResult> RunAsync(string command, string workingDirectory, int timeoutMs, CancellationToken cancellationToken)
+    public async Task<CommandResult> RunAsync(string command, string workingDirectory, int timeoutMs,
+        CancellationToken cancellationToken)
     {
         var startInfo = BuildShellStartInfo(command, workingDirectory);
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
@@ -61,14 +100,14 @@ public sealed class ShellCommandRunner
         }
         catch (OperationCanceledException)
         {
-            TryKill(process);
+            tryKill(process);
             return new CommandResult(false, -1, output.ToString(), "timeout or cancellation");
         }
 
         var exitCode = process.ExitCode;
         if (exitCode != 0)
         {
-            _logger.LogWarning("Command failed with exit {ExitCode}: {Command}", exitCode, command);
+            logger.LogWarning("Command failed with exit {ExitCode}: {Command}", exitCode, command);
         }
 
         return new CommandResult(exitCode == 0, exitCode, output.ToString(), error.ToString());
@@ -78,12 +117,12 @@ public sealed class ShellCommandRunner
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (IsExecutableOnPath("bash"))
+            if (isExecutableOnPath("bash"))
             {
                 return new ProcessStartInfo
                 {
                     FileName = "bash",
-                    Arguments = $"-lc \"{Escape(command)}\"",
+                    Arguments = $"-lc \"{escape(command)}\"",
                     WorkingDirectory = workingDirectory,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -107,7 +146,7 @@ public sealed class ShellCommandRunner
         return new ProcessStartInfo
         {
             FileName = "bash",
-            Arguments = $"-lc \"{Escape(command)}\"",
+            Arguments = $"-lc \"{escape(command)}\"",
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -115,43 +154,4 @@ public sealed class ShellCommandRunner
             UseShellExecute = false
         };
     }
-
-    private static string Escape(string command)
-    {
-        return command.Replace("\\", "\\\\").Replace("\"", "\\\"");
-    }
-
-    private static bool IsExecutableOnPath(string name)
-    {
-        var paths = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        foreach (var path in paths)
-        {
-            var candidate = Path.Combine(path, name + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : string.Empty));
-            if (File.Exists(candidate))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static void TryKill(Process process)
-    {
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(true);
-            }
-        }
-        catch
-        {
-            // ignored
-        }
-    }
 }
-
-public sealed record CommandResult(bool Success, int ExitCode, string StdOut, string StdErr);
-
