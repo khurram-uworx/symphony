@@ -111,13 +111,6 @@ class LinearClient
                   updatedAt
                   state { name }
                   labels { nodes { name } }
-                  blockedBy {
-                    nodes {
-                      id
-                      identifier
-                      state { name }
-                    }
-                  }
                 }
                 pageInfo { hasNextPage endCursor }
               }
@@ -144,9 +137,7 @@ class LinearClient
             var hasNext = pageInfo.GetProperty("hasNextPage").GetBoolean();
             cursor = pageInfo.GetProperty("endCursor").GetString();
             if (!hasNext || string.IsNullOrWhiteSpace(cursor))
-            {
                 break;
-            }
         }
 
         return results;
@@ -197,32 +188,25 @@ class LinearClient
             return Array.Empty<Issue>();
         }
 
-        var query = @"
-query IssuesById($ids: [ID!]) {
-  issues(filter: { id: { in: $ids } }) {
-    nodes {
-      id
-      identifier
-      title
-      description
-      priority
-      branchName
-      url
-      createdAt
-      updatedAt
-      state { name }
-      labels { nodes { name } }
-      blockedBy {
-        nodes {
-          id
-          identifier
-          state { name }
-        }
-      }
-    }
-  }
-}
-";
+        var query = """
+            query IssuesById($ids: [ID!]) {
+              issues(filter: { id: { in: $ids } }) {
+                nodes {
+                  id
+                  identifier
+                  title
+                  description
+                  priority
+                  branchName
+                  url
+                  createdAt
+                  updatedAt
+                  state { name }
+                  labels { nodes { name } }
+                }
+              }
+            }
+            """;
 
         var payload = new
         {
