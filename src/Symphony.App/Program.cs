@@ -34,11 +34,22 @@ try
             services.AddSingleton<WorkspaceManager>();
             services.AddSingleton<IIssueTracker>(provider =>
             {
-                var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
-                var logger = provider.GetRequiredService<ILogger<LinearClient>>();
                 var configProvider = provider.GetRequiredService<ServiceConfigProvider>();
                 var config = configProvider.GetConfig();
-                return new LinearClient(httpClientFactory, logger, config);
+                var kind = config.Tracker.Kind.ToLowerInvariant().Trim();
+
+                if (kind.Equals("jira", StringComparison.OrdinalIgnoreCase))
+                {
+                    var logger = provider.GetRequiredService<ILogger<JiraIssueTracker>>();
+                    var jiraHttpClient = JiraIssueTracker.CreateJiraHttpClient(config.Tracker.Endpoint, config.Tracker.ApiKey, logger);
+                    return new JiraIssueTracker(jiraHttpClient, logger, config);
+                }
+                else
+                {
+                    var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
+                    var logger = provider.GetRequiredService<ILogger<LinearClient>>();
+                    return new LinearClient(httpClientFactory, logger, config);
+                }
             });
             services.AddSingleton<ICodingAgent>(provider =>
             {

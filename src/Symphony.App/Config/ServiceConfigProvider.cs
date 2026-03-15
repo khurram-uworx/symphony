@@ -41,11 +41,18 @@ record TrackerConfig(
     {
         var tracker = ConfigReader.ReadMap(root, "tracker");
         var kind = ConfigReader.ReadString(tracker, "kind") ?? string.Empty;
-        var endpoint = ConfigReader.ReadString(tracker, "endpoint") ?? "https://api.linear.app/graphql";
-        var apiKeyRaw = ConfigReader.ReadString(tracker, "api_key")
-            ?? Environment.GetEnvironmentVariable("LINEAR_API_KEY")
-            ?? string.Empty;
-        var apiKey = ConfigReader.ResolveEnvValue(apiKeyRaw);
+        var endpoint = ConfigReader.ReadString(tracker, "endpoint") ?? (kind.Equals("jira", StringComparison.OrdinalIgnoreCase) ? "" : "https://api.linear.app/graphql");
+        
+        // Support environment variables for both Linear and Jira
+        var apiKeyRaw = ConfigReader.ReadString(tracker, "api_key");
+        if (string.IsNullOrWhiteSpace(apiKeyRaw))
+        {
+            apiKeyRaw = kind.Equals("jira", StringComparison.OrdinalIgnoreCase)
+                ? Environment.GetEnvironmentVariable("JIRA_TOKEN")
+                : Environment.GetEnvironmentVariable("LINEAR_API_KEY");
+        }
+        var apiKey = ConfigReader.ResolveEnvValue(apiKeyRaw ?? string.Empty);
+        
         var projectSlug = ConfigReader.ReadString(tracker, "project_slug") ?? string.Empty;
         var activeStates = ConfigReader.ReadStringList(tracker, "active_states")
             ?? new List<string> { "Todo", "In Progress" };
@@ -214,14 +221,19 @@ class ServiceConfigProvider
         if (string.IsNullOrWhiteSpace(config.Tracker.Kind))
             return ConfigValidationResult.Fail("tracker.kind is missing");
 
-        if (!string.Equals(config.Tracker.Kind, "linear", StringComparison.OrdinalIgnoreCase))
-            return ConfigValidationResult.Fail($"Unsupported tracker.kind '{config.Tracker.Kind}'.");
+        var kind = config.Tracker.Kind.ToLowerInvariant().Trim();
+        if (!kind.Equals("linear", StringComparison.OrdinalIgnoreCase) && 
+            !kind.Equals("jira", StringComparison.OrdinalIgnoreCase))
+            return ConfigValidationResult.Fail($"Unsupported tracker.kind '{config.Tracker.Kind}'. Must be 'linear' or 'jira'.");
 
         if (string.IsNullOrWhiteSpace(config.Tracker.ApiKey))
             return ConfigValidationResult.Fail("tracker.api_key is missing");
 
         if (string.IsNullOrWhiteSpace(config.Tracker.ProjectSlug))
-            return ConfigValidationResult.Fail("tracker.project_slug is missing");
+            return ConfigValidationResult.Fail("tracker.project_slug is missing (Linear: project slug, Jira: project key)");
+
+        if (string.IsNullOrWhiteSpace(config.Tracker.Endpoint))
+            return ConfigValidationResult.Fail("tracker.endpoint is missing");
 
         return ConfigValidationResult.Ok();
     }
