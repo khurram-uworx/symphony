@@ -9,10 +9,8 @@ record CommandResult(bool Success, int ExitCode, string StdOut, string StdErr);
 
 class ShellCommandRunner
 {
-    static string escape(string command)
-    {
-        return command.Replace("\\", "\\\\").Replace("\"", "\\\"");
-    }
+    static string escape(string command) =>
+        command.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
     static bool isExecutableOnPath(string name)
     {
@@ -35,9 +33,7 @@ class ShellCommandRunner
         try
         {
             if (!process.HasExited)
-            {
                 process.Kill(true);
-            }
         }
         catch
         {
@@ -64,23 +60,17 @@ class ShellCommandRunner
         process.OutputDataReceived += (_, args) =>
         {
             if (args.Data is not null)
-            {
                 output.AppendLine(args.Data);
-            }
         };
 
         process.ErrorDataReceived += (_, args) =>
         {
             if (args.Data is not null)
-            {
                 error.AppendLine(args.Data);
-            }
         };
 
         if (!process.Start())
-        {
             return new CommandResult(false, -1, "failed to start", "");
-        }
 
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
@@ -90,9 +80,7 @@ class ShellCommandRunner
             : null;
 
         if (timeoutCts is not null)
-        {
             timeoutCts.CancelAfter(timeoutMs);
-        }
 
         try
         {
@@ -106,9 +94,7 @@ class ShellCommandRunner
 
         var exitCode = process.ExitCode;
         if (exitCode != 0)
-        {
             logger.LogWarning("Command failed with exit {ExitCode}: {Command}", exitCode, command);
-        }
 
         return new CommandResult(exitCode == 0, exitCode, output.ToString(), error.ToString());
     }
@@ -117,19 +103,19 @@ class ShellCommandRunner
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (isExecutableOnPath("bash"))
-            {
-                return new ProcessStartInfo
-                {
-                    FileName = "bash",
-                    Arguments = $"-lc \"{escape(command)}\"",
-                    WorkingDirectory = workingDirectory,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    RedirectStandardInput = true,
-                    UseShellExecute = false
-                };
-            }
+            //if (isExecutableOnPath("bash"))
+            //{
+            //    return new ProcessStartInfo
+            //    {
+            //        FileName = "bash",
+            //        Arguments = $"-lc \"{escape(command)}\"",
+            //        WorkingDirectory = workingDirectory,
+            //        RedirectStandardOutput = true,
+            //        RedirectStandardError = true,
+            //        RedirectStandardInput = true,
+            //        UseShellExecute = false
+            //    };
+            //}
 
             return new ProcessStartInfo
             {

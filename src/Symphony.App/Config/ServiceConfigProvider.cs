@@ -10,7 +10,7 @@ record ServiceConfig(
     WorkspaceConfig Workspace,
     HooksConfig Hooks,
     AgentConfig Agent,
-    CodexConfig Codex)
+    CodexConfig? Codex)
 {
     public HashSet<string> ActiveStates => Tracker.ActiveStates;
     public HashSet<string> TerminalStates => Tracker.TerminalStates;
@@ -30,9 +30,8 @@ record TrackerConfig(
         foreach (var state in states)
         {
             if (!string.IsNullOrWhiteSpace(state))
-            {
-                set.Add(state.Trim().ToLowerInvariant());
-            }
+                //set.Add(state.Trim().ToLowerInvariant());
+                set.Add(state.Trim());
         }
 
         return set;
@@ -125,21 +124,15 @@ record AgentConfig(
         var agent = ConfigReader.ReadMap(root, "agent");
         var max = ConfigReader.ReadInt(agent, "max_concurrent_agents") ?? 10;
         if (max <= 0)
-        {
             max = 10;
-        }
 
         var backoff = ConfigReader.ReadInt(agent, "max_retry_backoff_ms") ?? 300000;
         if (backoff <= 0)
-        {
             backoff = 300000;
-        }
 
         var maxTurns = ConfigReader.ReadInt(agent, "max_turns") ?? 1;
         if (maxTurns <= 0)
-        {
             maxTurns = 1;
-        }
 
         var perState = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         if (agent.TryGetValue("max_concurrent_agents_by_state", out var rawMap) && rawMap is IReadOnlyDictionary<string, object> map)
@@ -148,13 +141,9 @@ record AgentConfig(
             {
                 var normalizedKey = key.Trim().ToLowerInvariant();
                 if (value is int intValue && intValue > 0)
-                {
                     perState[normalizedKey] = intValue;
-                }
                 else if (value is string str && int.TryParse(str, out var parsed) && parsed > 0)
-                {
                     perState[normalizedKey] = parsed;
-                }
             }
         }
 
@@ -171,8 +160,11 @@ record CodexConfig(
     int ReadTimeoutMs,
     int StallTimeoutMs)
 {
-    public static CodexConfig From(IReadOnlyDictionary<string, object> root)
+    public static CodexConfig? From(IReadOnlyDictionary<string, object> root)
     {
+        if (!ConfigReader.SectionExists(root, "codex"))
+            return null;
+
         var codex = ConfigReader.ReadMap(root, "codex");
         var command = ConfigReader.ReadString(codex, "command") ?? "codex app-server";
         var approval = ConfigReader.ReadString(codex, "approval_policy");
@@ -220,29 +212,16 @@ class ServiceConfigProvider
     public ConfigValidationResult ValidateForDispatch(ServiceConfig config)
     {
         if (string.IsNullOrWhiteSpace(config.Tracker.Kind))
-        {
             return ConfigValidationResult.Fail("tracker.kind is missing");
-        }
 
         if (!string.Equals(config.Tracker.Kind, "linear", StringComparison.OrdinalIgnoreCase))
-        {
             return ConfigValidationResult.Fail($"Unsupported tracker.kind '{config.Tracker.Kind}'.");
-        }
 
         if (string.IsNullOrWhiteSpace(config.Tracker.ApiKey))
-        {
             return ConfigValidationResult.Fail("tracker.api_key is missing");
-        }
 
         if (string.IsNullOrWhiteSpace(config.Tracker.ProjectSlug))
-        {
             return ConfigValidationResult.Fail("tracker.project_slug is missing");
-        }
-
-        if (string.IsNullOrWhiteSpace(config.Codex.Command))
-        {
-            return ConfigValidationResult.Fail("codex.command is missing");
-        }
 
         return ConfigValidationResult.Ok();
     }
@@ -255,17 +234,19 @@ class ServiceConfigProvider
 
 static class ConfigReader
 {
+    public static bool SectionExists(IReadOnlyDictionary<string, object> root, string key)
+    {
+        return root.TryGetValue(key, out var value) &&
+               (value is IReadOnlyDictionary<string, object> || value is Dictionary<string, object>);
+    }
+
     public static IReadOnlyDictionary<string, object> ReadMap(IReadOnlyDictionary<string, object> root, string key)
     {
         if (root.TryGetValue(key, out var value) && value is IReadOnlyDictionary<string, object> map)
-        {
             return map;
-        }
 
         if (root.TryGetValue(key, out value) && value is Dictionary<string, object> dict)
-        {
             return dict;
-        }
 
         return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
     }
@@ -273,14 +254,10 @@ static class ConfigReader
     public static string? ReadString(IReadOnlyDictionary<string, object> map, string key)
     {
         if (!map.TryGetValue(key, out var value) || value is null)
-        {
             return null;
-        }
 
         if (value is string str)
-        {
             return str;
-        }
 
         return value.ToString();
     }
@@ -288,24 +265,16 @@ static class ConfigReader
     public static int? ReadInt(IReadOnlyDictionary<string, object> map, string key)
     {
         if (!map.TryGetValue(key, out var value) || value is null)
-        {
             return null;
-        }
 
         if (value is int i)
-        {
             return i;
-        }
 
         if (value is long l)
-        {
             return (int)l;
-        }
 
         if (value is string str && int.TryParse(str, out var parsed))
-        {
             return parsed;
-        }
 
         return null;
     }
@@ -313,9 +282,7 @@ static class ConfigReader
     public static List<string>? ReadStringList(IReadOnlyDictionary<string, object> map, string key)
     {
         if (!map.TryGetValue(key, out var value) || value is null)
-        {
             return null;
-        }
 
         if (value is List<object> list)
         {
@@ -323,9 +290,7 @@ static class ConfigReader
             foreach (var item in list)
             {
                 if (item is null)
-                {
                     continue;
-                }
                 result.Add(item.ToString() ?? string.Empty);
             }
 
@@ -338,9 +303,7 @@ static class ConfigReader
     public static string ResolveEnvValue(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
-        {
             return string.Empty;
-        }
 
         if (raw.StartsWith("$", StringComparison.Ordinal))
         {

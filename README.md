@@ -1,10 +1,10 @@
 # Symphony .NET
 
-A .NET 10 implementation of Symphony, an AI agent orchestration system based on [OpenAI's Symphony specification](SPEC.md).
+A .NET 10 implementation of Symphony, an AI agent orchestration system based on [OpenAI's Symphony specification](SPEC.md)
 
 > [!WARNING]
-> Symphony is prototype software intended for evaluation and development purposes.
-> For production deployments, implement your own hardened version based on SPEC.md.
+> Symphony is prototype software intended for evaluation and development purposes
+> For production deployments, implement your own hardened version based on SPEC.md
 
 ## Overview
 
@@ -16,7 +16,9 @@ Symphony is an AI-powered agent that:
 4. Executes workflow prompts to guide AI-driven development
 5. Manages agent lifecycle until work is completed
 
-The system automatically stops agents and cleans up workspaces when issues reach terminal states (Done, Closed, Cancelled, or Duplicate).
+The system automatically stops agents and cleans up workspaces when issues reach terminal states (Done, Closed, Cancelled, or Duplicate)
+
+![Symphony: From 1000ft](images/symphony-1000ft.png)
 
 ## Getting Started
 
@@ -29,34 +31,34 @@ The system automatically stops agents and cleans up workspaces when issues reach
 ### Setup
 
 1. Clone the repository:
-   `bash
+   ```bash
    git clone https://github.com/khurram-uworx/symphony
    cd symphony
-   `
+   ```
 
 2. Set your Linear API key:
-   `bash
+   ```bash
    # Windows PowerShell
    $env:LINEAR_API_KEY = "your_api_key_here"
    
    # Linux/macOS
    export LINEAR_API_KEY="your_api_key_here"
-   `
+   ```
 
 3. Build the project:
-   `bash
+   ```bash
    dotnet build
-   `
+   ```
 
 ### Running Symphony
 
 Run the application with a workflow configuration file:
 
-`bash
+```bash
 dotnet run --project src/Symphony.App/Symphony.App.csproj -- path/to/WORKFLOW.md
-`
+```
 
-If no path is provided, Symphony defaults to ./WORKFLOW.md.
+If no path is provided, Symphony defaults to ./WORKFLOW.md
 
 ## Configuration
 
@@ -70,7 +72,7 @@ tracker:
   kind: linear
   project_slug: "YOUR_PROJECT_SLUG"
 workspace:
-  root: ~/code/workspaces
+  root: ~/symphony/workspaces
 hooks:
   before_run: |
     # Optional setup commands
@@ -118,7 +120,6 @@ src/Symphony.App/
 ├── Program.cs                  # Application entry point
 ├── Agent/                      # AI agent execution
 │   ├── AgentRunner.cs
-│   ├── AppServerClient.cs
 │   └── *.cs
 ├── Config/                     # Configuration management
 ├── Domain/                     # Core domain models
@@ -138,15 +139,15 @@ src/Symphony.App/
 
 ### Building
 
-`bash
+```bash
 dotnet build
-`
+```
 
 ### Running Tests
 
-`bash
+```bash
 dotnet test
-`
+```
 
 ### Code Style
 
@@ -192,4 +193,4 @@ Contributions are welcome! Please ensure:
 
 ## License
 
-This project is licensed under the [Apache License 2.0](LICENSE).
+This project is licensed under the [Apache License 2.0](LICENSE)

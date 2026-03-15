@@ -4,18 +4,17 @@ using Symphony.App.Domain;
 using System.Text;
 using System.Text.Json;
 
-namespace Symphony.App.Linear;
+namespace Symphony.App.IssueTracker;
 
-class LinearClient
+class LinearClient : IIssueTracker
 {
     static IReadOnlyList<Issue> parseIssues(JsonDocument doc, string rootField)
     {
         var result = new List<Issue>();
         var nodes = doc.RootElement.GetProperty("data").GetProperty(rootField).GetProperty("nodes");
+
         foreach (var node in nodes.EnumerateArray())
-        {
             result.Add(parseIssue(node));
-        }
 
         return result;
     }
@@ -34,15 +33,11 @@ class LinearClient
 
         var blockers = new List<BlockerRef>();
         if (node.TryGetProperty("blockedBy", out var blockedByNode))
-        {
             foreach (var blocker in blockedByNode.GetProperty("nodes").EnumerateArray())
-            {
                 blockers.Add(new BlockerRef(
                     blocker.GetProperty("id").GetString(),
                     blocker.GetProperty("identifier").GetString(),
                     blocker.GetProperty("state").GetProperty("name").GetString()));
-            }
-        }
 
         return new Issue(
             node.GetProperty("id").GetString() ?? string.Empty,
@@ -62,31 +57,30 @@ class LinearClient
     static DateTimeOffset? parseDate(JsonElement node, string name)
     {
         if (node.TryGetProperty(name, out var dateNode) && dateNode.ValueKind == JsonValueKind.String && DateTimeOffset.TryParse(dateNode.GetString(), out var dto))
-        {
             return dto;
-        }
 
         return null;
     }
 
     readonly IHttpClientFactory httpClientFactory;
     readonly ILogger<LinearClient> logger;
+    readonly ServiceConfig config;
 
-    public LinearClient(IHttpClientFactory httpClientFactory, ILogger<LinearClient> logger)
+    public LinearClient(IHttpClientFactory httpClientFactory, ILogger<LinearClient> logger, ServiceConfig config)
     {
         this.httpClientFactory = httpClientFactory;
         this.logger = logger;
+        this.config = config;
     }
 
-    async Task<IReadOnlyList<Issue>> fetchIssuesByStatesAsync(ServiceConfig config,
+    async Task<IReadOnlyList<Issue>> fetchIssuesByStatesAsync(
         IEnumerable<string> states, CancellationToken cancellationToken)
     {
         var results = new List<Issue>();
         var stateList = new List<string>(states);
+
         if (stateList.Count == 0)
-        {
             return results;
-        }
 
         string? cursor = null;
         var query = """
@@ -125,7 +119,7 @@ class LinearClient
                 variables = new { projectSlug = config.Tracker.ProjectSlug, states = stateList, after = cursor }
             };
 
-            var response = await sendRequestAsync(config, payload, cancellationToken);
+            var response = await sendRequestAsync(payload, cancellationToken);
             var pageIssues = parseIssues(response, "issues");
             results.AddRange(pageIssues);
 
@@ -136,6 +130,7 @@ class LinearClient
 
             var hasNext = pageInfo.GetProperty("hasNextPage").GetBoolean();
             cursor = pageInfo.GetProperty("endCursor").GetString();
+
             if (!hasNext || string.IsNullOrWhiteSpace(cursor))
                 break;
         }
@@ -143,7 +138,7 @@ class LinearClient
         return results;
     }
 
-    async Task<JsonDocument> sendRequestAsync(ServiceConfig config,
+    async Task<JsonDocument> sendRequestAsync(
         object payload, CancellationToken cancellationToken)
     {
         var client = httpClientFactory.CreateClient();
@@ -155,10 +150,9 @@ class LinearClient
 
         var response = await client.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
         if (!response.IsSuccessStatusCode)
-        {
             throw new InvalidOperationException($"Linear API error: {(int)response.StatusCode} {response.ReasonPhrase}");
-        }
 
         var doc = JsonDocument.Parse(content);
         if (doc.RootElement.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Array && errors.GetArrayLength() > 0)
@@ -170,23 +164,21 @@ class LinearClient
         return doc;
     }
 
-    public async Task<IReadOnlyList<Issue>> FetchCandidateIssuesAsync(ServiceConfig config, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Issue>> FetchCandidateIssuesAsync(CancellationToken cancellationToken)
     {
-        return await fetchIssuesByStatesAsync(config, config.ActiveStates, cancellationToken);
+        return await fetchIssuesByStatesAsync(config.ActiveStates, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Issue>> FetchTerminalIssuesAsync(ServiceConfig config, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Issue>> FetchTerminalIssuesAsync(CancellationToken cancellationToken)
     {
-        return await fetchIssuesByStatesAsync(config, config.TerminalStates, cancellationToken);
+        return await fetchIssuesByStatesAsync(config.TerminalStates, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Issue>> FetchIssueStatesByIdsAsync(ServiceConfig config,
+    public async Task<IReadOnlyList<Issue>> FetchIssueStatesByIdsAsync(
         IReadOnlyList<string> ids, CancellationToken cancellationToken)
     {
         if (ids.Count == 0)
-        {
             return Array.Empty<Issue>();
-        }
 
         var query = """
             query IssuesById($ids: [ID!]) {
@@ -214,7 +206,7 @@ class LinearClient
             variables = new { ids }
         };
 
-        var response = await sendRequestAsync(config, payload, cancellationToken);
+        var response = await sendRequestAsync(payload, cancellationToken);
         return parseIssues(response, "issues");
     }
 }

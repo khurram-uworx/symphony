@@ -13,9 +13,7 @@ class WorkflowLoader
         foreach (var (key, value) in source)
         {
             if (key is null)
-            {
                 continue;
-            }
 
             var keyString = key.ToString() ?? string.Empty;
             result[keyString] = normalizeYamlValue(value);
@@ -27,22 +25,16 @@ class WorkflowLoader
     static object normalizeYamlValue(object? value)
     {
         if (value is null)
-        {
             return string.Empty;
-        }
 
         if (value is IDictionary<object, object> map)
-        {
             return toStringKeyDictionary(map);
-        }
 
         if (value is IList<object> list)
         {
             var normalized = new List<object>(list.Count);
             foreach (var item in list)
-            {
                 normalized.Add(normalizeYamlValue(item));
-            }
 
             return normalized;
         }
@@ -64,22 +56,16 @@ class WorkflowLoader
     public WorkflowDefinition Load(string path)
     {
         if (!File.Exists(path))
-        {
             throw new WorkflowException("missing_workflow_file", $"WORKFLOW.md not found at {path}");
-        }
 
         var content = File.ReadAllText(path, Encoding.UTF8);
         if (!content.StartsWith("---"))
-        {
             return new WorkflowDefinition(new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase), content.Trim());
-        }
 
         using var reader = new StringReader(content);
         var firstLine = reader.ReadLine();
         if (firstLine is null || firstLine.Trim() != "---")
-        {
             return new WorkflowDefinition(new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase), content.Trim());
-        }
 
         var frontMatterBuilder = new StringBuilder();
         string? line;
@@ -96,9 +82,7 @@ class WorkflowLoader
         }
 
         if (!foundTerminator)
-        {
             throw new WorkflowException("workflow_parse_error", "Front matter start found but no closing delimiter.");
-        }
 
         var frontMatter = frontMatterBuilder.ToString();
         IReadOnlyDictionary<string, object> config;
@@ -106,17 +90,11 @@ class WorkflowLoader
         {
             var yamlObject = deserializer.Deserialize<object>(frontMatter);
             if (yamlObject is null)
-            {
                 config = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-            }
             else if (yamlObject is IDictionary<object, object> map)
-            {
                 config = toStringKeyDictionary(map);
-            }
             else
-            {
                 throw new WorkflowException("workflow_front_matter_not_a_map", "Front matter must be a map/object.");
-            }
         }
         catch (WorkflowException)
         {
@@ -130,6 +108,7 @@ class WorkflowLoader
         var remaining = reader.ReadToEnd();
         var prompt = remaining.Trim();
         logger.LogDebug("Loaded workflow config with {KeyCount} keys", config.Count);
+
         return new WorkflowDefinition(config, prompt);
     }
 }

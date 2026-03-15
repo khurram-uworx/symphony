@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Symphony.App.Agent;
 using Symphony.App.Config;
 using Symphony.App.Domain;
-using Symphony.App.Linear;
+using Symphony.App.IssueTracker;
 using Symphony.App.Workflows;
 using Symphony.App.Workspaces;
 
@@ -75,19 +75,15 @@ class OrchestratorService : BackgroundService
 
             updateDynamicConfig(config);
 
-            var issues = await linearClient.FetchCandidateIssuesAsync(config, cancellationToken);
+            var issues = await linearClient.FetchCandidateIssuesAsync(cancellationToken);
             var sorted = sortForDispatch(issues);
             foreach (var issue in sorted)
             {
                 if (!hasAvailableSlots(config, issue))
-                {
                     break;
-                }
 
                 if (shouldDispatch(config, issue))
-                {
                     dispatchIssue(config, issue, null, cancellationToken);
-                }
             }
         }
         catch (Exception ex)
@@ -107,9 +103,7 @@ class OrchestratorService : BackgroundService
         }
 
         if (runningIds.Count == 0)
-        {
             return;
-        }
 
         ServiceConfig config;
         try
@@ -124,7 +118,7 @@ class OrchestratorService : BackgroundService
         IReadOnlyList<Issue> refreshed;
         try
         {
-            refreshed = await linearClient.FetchIssueStatesByIdsAsync(config, runningIds, cancellationToken);
+            refreshed = await linearClient.FetchIssueStatesByIdsAsync(runningIds, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -137,38 +131,29 @@ class OrchestratorService : BackgroundService
         foreach (var id in runningIds)
         {
             if (!refreshedById.TryGetValue(id, out var issue))
-            {
                 continue;
-            }
 
             if (config.TerminalStates.Contains(issue.NormalizedState))
-            {
                 await terminateRunningIssueAsync(id, cleanupWorkspace: true, cancellationToken);
-            }
             else if (config.ActiveStates.Contains(issue.NormalizedState))
             {
                 lock (theLock)
                 {
                     if (state.Running.TryGetValue(id, out var running))
-                    {
                         running.Issue = issue;
-                    }
                 }
             }
             else
-            {
                 await terminateRunningIssueAsync(id, cleanupWorkspace: false, cancellationToken);
-            }
         }
     }
 
     async Task reconcileStalledRunsAsync(CancellationToken cancellationToken)
     {
         var config = configProvider.GetConfig();
-        if (config.Codex.StallTimeoutMs <= 0)
-        {
+
+        if (config.Codex is null || config.Codex.StallTimeoutMs <= 0)
             return;
-        }
 
         var now = DateTimeOffset.UtcNow;
         List<string> stalled = new();
@@ -177,10 +162,9 @@ class OrchestratorService : BackgroundService
             foreach (var (id, entry) in state.Running)
             {
                 var last = entry.Session.LastCodexTimestamp ?? entry.StartedAt;
+
                 if (now - last > TimeSpan.FromMilliseconds(config.Codex.StallTimeoutMs))
-                {
                     stalled.Add(id);
-                }
             }
         }
 
@@ -194,16 +178,12 @@ class OrchestratorService : BackgroundService
     bool shouldDispatch(ServiceConfig config, Issue issue)
     {
         if (!config.ActiveStates.Contains(issue.NormalizedState))
-        {
             return false;
-        }
 
         lock (theLock)
         {
             if (state.Claimed.Contains(issue.Id))
-            {
                 return false;
-            }
         }
 
         if (string.Equals(issue.NormalizedState, "todo", StringComparison.OrdinalIgnoreCase))
@@ -211,15 +191,12 @@ class OrchestratorService : BackgroundService
             foreach (var blocker in issue.BlockedBy)
             {
                 var blockerState = blocker.State?.Trim().ToLowerInvariant();
+
                 if (string.IsNullOrWhiteSpace(blockerState))
-                {
                     return false;
-                }
 
                 if (!config.TerminalStates.Contains(blockerState))
-                {
                     return false;
-                }
             }
         }
 
@@ -231,9 +208,7 @@ class OrchestratorService : BackgroundService
         lock (theLock)
         {
             if (state.Running.Count >= state.MaxConcurrentAgents)
-            {
                 return false;
-            }
 
             var normalized = issue.NormalizedState;
             if (config.Agent.MaxConcurrentByState.TryGetValue(normalized, out var limit))
@@ -257,9 +232,8 @@ class OrchestratorService : BackgroundService
             {
                 updateCodexMetrics(issue.Id, liveSession, evt);
                 if (!string.IsNullOrWhiteSpace(liveSession.SessionId))
-                {
                     logger.LogDebug("codex_event {event_name} {issue_id} {issue_identifier} {session_id}", evt.EventName, issue.Id, issue.Identifier, liveSession.SessionId);
-                }
+
             }, cts.Token);
 
             await handleWorkerExitAsync(issue.Id, issue.Identifier, result, attempt, cancellationToken);
@@ -324,6 +298,7 @@ class OrchestratorService : BackgroundService
         {
             timer?.Dispose();
             await onRetryTimerAsync(issueId, cancellationToken);
+
         }, null, delay, Timeout.InfiniteTimeSpan);
 
         var entry = new RetryEntry
@@ -353,9 +328,7 @@ class OrchestratorService : BackgroundService
         }
 
         if (retry is null)
-        {
             return;
-        }
 
         ServiceConfig config;
         try
@@ -370,7 +343,7 @@ class OrchestratorService : BackgroundService
         IReadOnlyList<Issue> candidates;
         try
         {
-            candidates = await linearClient.FetchCandidateIssuesAsync(config, cancellationToken);
+            candidates = await linearClient.FetchCandidateIssuesAsync(cancellationToken);
         }
         catch
         {
@@ -407,16 +380,12 @@ class OrchestratorService : BackgroundService
         }
 
         if (running is null)
-        {
             return;
-        }
 
         running.Cancellation.Cancel();
 
         if (cleanupWorkspace)
-        {
             await workspaceManager.CleanupWorkspaceAsync(running.Identifier, cancellationToken);
-        }
     }
 
     void updateDynamicConfig(ServiceConfig config)
@@ -428,7 +397,7 @@ class OrchestratorService : BackgroundService
         }
     }
 
-    void updateCodexMetrics(string issueId, LiveSession session, CodexEvent evt)
+    void updateCodexMetrics(string issueId, LiveSession session, CodingAgentEvent evt)
     {
         lock (theLock)
         {
@@ -442,11 +411,10 @@ class OrchestratorService : BackgroundService
     {
         try
         {
-            var terminal = await linearClient.FetchTerminalIssuesAsync(config, cancellationToken);
+            var terminal = await linearClient.FetchTerminalIssuesAsync(cancellationToken);
+
             foreach (var issue in terminal)
-            {
                 await workspaceManager.CleanupWorkspaceAsync(issue.Identifier, cancellationToken);
-            }
         }
         catch (Exception ex)
         {
@@ -497,14 +465,10 @@ class OrchestratorService : BackgroundService
         lock (theLock)
         {
             foreach (var retry in state.RetryAttempts.Values)
-            {
                 retry.TimerHandle.Dispose();
-            }
 
             foreach (var entry in state.Running.Values)
-            {
                 entry.Cancellation.Cancel();
-            }
         }
 
         await base.StopAsync(cancellationToken);

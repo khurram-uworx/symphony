@@ -1,8 +1,7 @@
 ---
 tracker:
   kind: linear
-  api_key: "DONT-CHECK-IN-KEY"
-  project_slug: "DONT-CHECK-IN-PROJECT-SLUG"
+  project_slug: "symphony-6db50961d073"
   active_states:
     - Todo
     - In Progress
@@ -15,26 +14,15 @@ tracker:
     - Duplicate
     - Done
 polling:
-  interval_ms: 5000
+  interval_ms: 500000
 workspace:
-  root: ~/code/symphony-workspaces
+  root: ~/symphony-workspaces
 hooks:
   after_create: |
-    git clone --depth 1 https://github.com/openai/symphony .
-    if command -v mise >/dev/null 2>&1; then
-      cd elixir && mise trust && mise exec -- mix deps.get
-    fi
-  before_remove: |
-    cd elixir && mise exec -- mix workspace.before_remove
+    git clone --depth 1 https://github.com/khurram-uworx/symphony .
 agent:
   max_concurrent_agents: 10
   max_turns: 20
-codex:
-  command: codex --config shell_environment_policy.inherit=all --config model_reasoning_effort=xhigh --model gpt-5.3-codex app-server
-  approval_policy: never
-  thread_sandbox: workspace-write
-  turn_sandbox_policy:
-    type: workspaceWrite
 ---
 
 You are working on a Linear ticket `{{ issue.identifier }}`

@@ -62,8 +62,5 @@ class WorkflowManager : IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        watcher?.Dispose();
-    }
+    public void Dispose() => watcher?.Dispose();
 }
