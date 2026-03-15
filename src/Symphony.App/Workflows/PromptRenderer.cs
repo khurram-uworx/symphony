@@ -13,25 +13,23 @@ class PromptRenderer
         parser = new FluidParser();
         options = new TemplateOptions
         {
+            ModelNamesComparer = StringComparers.CamelCase
         };
 
-        options.MemberAccessStrategy.Register<Issue>();
-        options.MemberAccessStrategy.Register<BlockerRef>();
+        //options.MemberAccessStrategy.Register<Issue>();
+        //options.MemberAccessStrategy.Register<BlockerRef>();
     }
 
     public string Render(string templateBody, Issue issue, int? attempt)
     {
         if (!parser.TryParse(templateBody, out var template, out var errors))
-        {
             throw new WorkflowException("template_parse_error", string.Join("; ", errors));
-        }
 
         var context = new TemplateContext(options);
         context.SetValue("issue", issue);
+
         if (attempt is not null)
-        {
             context.SetValue("attempt", attempt.Value);
-        }
 
         try
         {

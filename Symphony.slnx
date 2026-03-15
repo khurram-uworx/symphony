@@ -7,4 +7,5 @@
     <File Path="SPEC.md" />
   </Folder>
   <Project Path="src/Symphony.App/Symphony.App.csproj" />
+  <Project Path="src/Symphony.Tests/Symphony.Tests.csproj" />
 </Solution>

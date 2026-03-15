@@ -1,5 +1,10 @@
 namespace Symphony.App.Domain;
 
+record Workspace(
+    string Path,
+    string WorkspaceKey,
+    bool CreatedNow);
+
 record BlockerRef(
     string? Id,
     string? Identifier,
@@ -19,5 +24,5 @@ record Issue(
     DateTimeOffset? CreatedAt,
     DateTimeOffset? UpdatedAt)
 {
-    public string NormalizedState => State.Trim().ToLowerInvariant();
+    public string NormalizedState => State.Trim(); //.ToLowerInvariant();
 }

@@ -3,8 +3,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Symphony.App;
 using Symphony.App.Agent;
+using Symphony.App.Agent.Codex;
 using Symphony.App.Config;
-using Symphony.App.Linear;
+using Symphony.App.IssueTracker;
 using Symphony.App.Orchestration;
 using Symphony.App.Workflows;
 using Symphony.App.Workspaces;
@@ -31,8 +32,30 @@ try
             services.AddSingleton<ServiceConfigProvider>();
             services.AddSingleton<Symphony.App.Utils.ShellCommandRunner>();
             services.AddSingleton<WorkspaceManager>();
-            services.AddSingleton<LinearClient>();
-            services.AddSingleton<AppServerClientFactory>();
+            services.AddSingleton<IIssueTracker>(provider =>
+            {
+                var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
+                var logger = provider.GetRequiredService<ILogger<LinearClient>>();
+                var configProvider = provider.GetRequiredService<ServiceConfigProvider>();
+                var workflowManager = provider.GetRequiredService<WorkflowManager>();
+                workflowManager.StartWatching();
+                var config = configProvider.GetConfig();
+                return new LinearClient(httpClientFactory, logger, config);
+            });
+            services.AddSingleton<ICodingAgent>(provider =>
+            {
+                var configProvider = provider.GetRequiredService<ServiceConfigProvider>();
+                var config = configProvider.GetConfig();
+
+                // Use CodexAgent if codex section exists, otherwise use CopilotAgent
+                if (config.Codex is not null)
+                {
+                    var logger = provider.GetRequiredService<ILogger<CodexAgent>>();
+                    return new CodexAgent(logger, config);
+                }
+                else
+                    return new CopilotAgent(config);
+            });
             services.AddSingleton<AgentRunner>();
             services.AddHostedService<OrchestratorService>();
             services.AddHttpClient();
