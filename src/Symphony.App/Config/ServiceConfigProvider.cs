@@ -214,8 +214,9 @@ class ServiceConfigProvider
         if (string.IsNullOrWhiteSpace(config.Tracker.Kind))
             return ConfigValidationResult.Fail("tracker.kind is missing");
 
-        if (!string.Equals(config.Tracker.Kind, "linear", StringComparison.OrdinalIgnoreCase))
-            return ConfigValidationResult.Fail($"Unsupported tracker.kind '{config.Tracker.Kind}'.");
+        if (!string.Equals(config.Tracker.Kind, "linear", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(config.Tracker.Kind, "jira", StringComparison.OrdinalIgnoreCase))
+            return ConfigValidationResult.Fail($"Unsupported tracker.kind '{config.Tracker.Kind}'. Supported values: 'linear', 'jira'.");
 
         if (string.IsNullOrWhiteSpace(config.Tracker.ApiKey))
             return ConfigValidationResult.Fail("tracker.api_key is missing");
