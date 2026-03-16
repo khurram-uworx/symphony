@@ -81,8 +81,15 @@ class AgentRunner
                     ? "You are working on an issue from Linear."
                     : promptRenderer.Render(config.Workflow.PromptTemplate, issue, attempt);
 
-                await agent.ExecuteTurnAsync(prompt, liveSession, cancellationToken);
-                liveSession.TurnCount++;
+                try
+                {
+                    _ = await agent.ExecuteTurnAsync(prompt, liveSession, cancellationToken);
+                    liveSession.TurnCount++;
+                }
+                catch (CodingAgentException ex)
+                {
+                    return AgentRunResult.Fail(ex.Message, ex.InnerException ?? ex);
+                }
 
                 var refreshed = await issueTracker.FetchIssueStatesByIdsAsync(new[] { issue.Id }, cancellationToken);
                 if (refreshed.Count == 0)

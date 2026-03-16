@@ -1,19 +1,23 @@
 ﻿using GitHub.Copilot.SDK;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Symphony.App.Config;
 using Symphony.App.Orchestration;
+using System.Text.Json;
 
 namespace Symphony.App.Agent;
 
 class CopilotAgent : ICodingAgent
 {
     readonly ServiceConfig config;
+    readonly ILogger<CopilotAgent> logger;
     CopilotClient? copilotClient;
     AIAgent? agent;
 
-    public CopilotAgent(ServiceConfig config)
+    public CopilotAgent(ILogger<CopilotAgent> logger, ServiceConfig config)
     {
+        this.logger = logger;
         this.config = config;
     }
 
@@ -40,6 +44,13 @@ class CopilotAgent : ICodingAgent
             },
             WorkingDirectory = workspacePath
         };
+        copilotClient.On(evt =>
+        {
+            onEvent(new CodingAgentEvent(evt.Type, evt.Metadata.ToString(), DateTimeOffset.Now, new JsonElement { }));
+            this.logger.LogInformation("[Copilot:{Session}] {Type}: {Summary} [{Started}-{Modified}]",
+                evt.SessionId, evt.Type,
+                evt.Metadata.Summary, evt.Metadata.StartTime, evt.Metadata.ModifiedTime);
+        });
 
         agent = copilotClient.AsAIAgent(sessionConfig);
         liveSession.SessionId = Guid.NewGuid().ToString();
@@ -59,6 +70,14 @@ class CopilotAgent : ICodingAgent
         catch (OperationCanceledException)
         {
             return null;
+        }
+        catch (InvalidOperationException ex)
+        {
+            //Session error: 402 You have no quota
+            if (ex.Message.Contains("You have no quota"))
+                throw new CodingAgentException("No remaining quota", ex);
+
+            throw;
         }
     }
 

@@ -232,11 +232,13 @@ class OrchestratorService : BackgroundService
             {
                 updateCodexMetrics(issue.Id, liveSession, evt);
                 if (!string.IsNullOrWhiteSpace(liveSession.SessionId))
-                    logger.LogDebug("codex_event {event_name} {issue_id} {issue_identifier} {session_id}", evt.EventName, issue.Id, issue.Identifier, liveSession.SessionId);
+                    logger.LogDebug("coding_agent_event {event_name} {issue_id} {issue_identifier} {session_id}",
+                        evt.EventName, issue.Id, issue.Identifier, liveSession.SessionId);
 
             }, cts.Token);
 
             await handleWorkerExitAsync(issue.Id, issue.Identifier, result, attempt, cancellationToken);
+
         }, cancellationToken);
 
         lock (theLock)

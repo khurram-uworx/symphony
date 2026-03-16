@@ -54,7 +54,10 @@ try
                     return new CodexAgent(logger, config);
                 }
                 else
-                    return new CopilotAgent(config);
+                {
+                    var logger = provider.GetRequiredService<ILogger<CopilotAgent>>();
+                    return new CopilotAgent(logger, config);
+                }
             });
             services.AddSingleton<AgentRunner>();
             services.AddHostedService<OrchestratorService>();
