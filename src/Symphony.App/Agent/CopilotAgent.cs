@@ -32,11 +32,11 @@ class CopilotAgent : ICodingAgent
             {
                 Kind = PermissionRequestResultKind.Approved
             }),
-            McpServers = new Dictionary<string, object>
+            McpServers = new Dictionary<string, McpServerConfig>
             {
-                ["linear"] = new McpLocalServerConfig
+                ["linear"] = new McpStdioServerConfig
                 {
-                    Type = "local",
+                    //Type = "local",
                     Command = "npx",
                     Args = new List<string> { "-y", "mcp-remote", "https://mcp.linear.app/mcp" },
                     Tools = new List<string> { "*" },
@@ -46,10 +46,10 @@ class CopilotAgent : ICodingAgent
         };
         copilotClient.On(evt =>
         {
-            onEvent(new CodingAgentEvent(evt.Type, evt.Metadata.ToString(), DateTimeOffset.Now, new JsonElement { }));
+            onEvent(new CodingAgentEvent(evt.Type, evt.Metadata?.ToString(), DateTimeOffset.Now, new JsonElement { }));
             this.logger.LogInformation("[Copilot:{Session}] {Type}: {Summary} [{Started}-{Modified}]",
                 evt.SessionId, evt.Type,
-                evt.Metadata.Summary, evt.Metadata.StartTime, evt.Metadata.ModifiedTime);
+                evt.Metadata?.Summary, evt.Metadata?.StartTime, evt.Metadata?.ModifiedTime);
         });
 
         agent = copilotClient.AsAIAgent(sessionConfig);

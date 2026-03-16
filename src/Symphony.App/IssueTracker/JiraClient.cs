@@ -8,41 +8,15 @@ namespace Symphony.App.IssueTracker;
 
 class JiraClient : IIssueTracker
 {
-    readonly IJiraClient jiraClient;
-    readonly ILogger<JiraClient> logger;
-    readonly ServiceConfig config;
-
-    public JiraClient(ILogger<JiraClient> logger, ServiceConfig config)
-    {
-        this.logger = logger;
-        this.config = config;
-
-        this.jiraClient = Dapplo.Jira.JiraClient.Create(new Uri(config.Tracker.Endpoint));
-        
-        // Parse credentials from api_key (format: "username:token" or just "token")
-        var credentials = config.Tracker.ApiKey;
-        if (credentials.Contains(':'))
-        {
-            var parts = credentials.Split(':', 2);
-            this.jiraClient.SetBasicAuthentication(parts[0], parts[1]);
-        }
-        else
-        {
-            // Assume it's a bearer token or API token
-            // For Jira Cloud, we typically use email:apitoken
-            this.jiraClient.SetBasicAuthentication(config.Tracker.ProjectSlug, credentials);
-        }
-    }
-
     static Domain.Issue parseIssue(IssueV2 jiraIssue)
     {
         var labels = jiraIssue.Fields?.Labels?.Select(l => l.Trim().ToLowerInvariant()).ToList() ?? new List<string>();
-        
+
         var blockers = new List<BlockerRef>();
         // Jira doesn't have a direct "blockedBy" relationship in the same way Linear does
         // This would need to be extracted from issue links if needed
         // For now, we'll leave it empty to maintain compatibility
-        
+
         return new Domain.Issue(
             jiraIssue.Key ?? string.Empty,
             jiraIssue.Key ?? string.Empty,
@@ -76,6 +50,33 @@ class JiraClient : IIssueTracker
         };
     }
 
+    static string escapedJqlString(string value) =>
+        value.Replace("\\", "\\\\").Replace("\"", "\\\""); // Escape special characters in JQL strings
+
+    readonly IJiraClient jiraClient;
+    readonly ILogger<JiraClient> logger;
+    readonly ServiceConfig config;
+
+    public JiraClient(ILogger<JiraClient> logger, ServiceConfig config)
+    {
+        this.logger = logger;
+        this.config = config;
+
+        this.jiraClient = Dapplo.Jira.JiraClient.Create(new Uri(config.Tracker.Endpoint));
+        
+        // Parse credentials from api_key (format: "username:token" or just "token")
+        var credentials = config.Tracker.ApiKey;
+        if (credentials.Contains(':'))
+        {
+            var parts = credentials.Split(':', 2);
+            this.jiraClient.SetBasicAuthentication(parts[0], parts[1]);
+        }
+        else
+            // Assume it's a bearer token or API token
+            // For Jira Cloud, we typically use email:apitoken
+            this.jiraClient.SetBasicAuthentication(config.Tracker.ProjectSlug, credentials);
+    }
+
     async Task<IReadOnlyList<Domain.Issue>> fetchIssuesByJqlAsync(
         string jql, CancellationToken cancellationToken)
     {
@@ -93,15 +94,11 @@ class JiraClient : IIssueTracker
                     cancellationToken: cancellationToken);
 
                 if (issues == null || !issues.Any())
-                {
                     hasMore = false;
-                }
                 else
                 {
                     foreach (var issue in issues)
-                    {
                         results.Add(parseIssue((IssueV2)issue));
-                    }
 
                     // Check if there are more pages
                     if (issues.Count() < maxResults)
@@ -125,9 +122,7 @@ class JiraClient : IIssueTracker
         // Build JQL query for active states
         var stateConditions = new List<string>();
         foreach (var state in config.ActiveStates)
-        {
             stateConditions.Add($"status = '{escapedJqlString(state)}'");
-        }
 
         if (!stateConditions.Any())
         {
@@ -146,9 +141,7 @@ class JiraClient : IIssueTracker
         // Build JQL query for terminal states
         var stateConditions = new List<string>();
         foreach (var state in config.TerminalStates)
-        {
             stateConditions.Add($"status = '{escapedJqlString(state)}'");
-        }
 
         if (!stateConditions.Any())
         {
@@ -184,11 +177,5 @@ class JiraClient : IIssueTracker
             logger.LogError(ex, "Failed to fetch issue states by IDs");
             throw;
         }
-    }
-
-    static string escapedJqlString(string value)
-    {
-        // Escape special characters in JQL strings
-        return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 }
