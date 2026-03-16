@@ -18,7 +18,47 @@ Symphony is an AI-powered agent that:
 
 The system automatically stops agents and cleans up workspaces when issues reach terminal states (Done, Closed, Cancelled, or Duplicate)
 
-![Symphony: From 1000ft](images/symphony-1000ft.png)
+```mermaid
+flowchart LR
+
+GH["GitHub Issues (Future)"]
+JIRA["Jira (Not Tested)"]
+LIN["Linear (Current)"]
+
+SYM["Symphony"]
+WF["Workflow.md (Settings & Instructions)"]
+ORCH["Orchestration System"]
+
+REPO["GitHub Repo (Only Supported Repo)"]
+MCP["GitHub MCP\nPRs, Issues, Repo Actions"]
+
+COP["GitHub Copilot (Current)"]
+CLAUDE["Claude Code (Future)"]
+CODEX["OpenAI Codex (Not Tested)"]
+
+RUN["Agents run locally\nwhere Symphony runs"]
+FUTURE["Future: Agents may run\nin isolated containers"]
+
+GH --> SYM
+JIRA --> SYM
+LIN --> SYM
+
+SYM --> ORCH
+WF --> ORCH
+
+ORCH --> REPO
+REPO --> MCP
+
+ORCH --> COP
+ORCH --> CLAUDE
+ORCH --> CODEX
+
+COP --> RUN
+CLAUDE --> RUN
+CODEX --> RUN
+
+RUN --> FUTURE
+```
 
 ## Getting Started
 
